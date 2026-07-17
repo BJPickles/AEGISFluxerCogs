@@ -38,7 +38,7 @@ class ReleaseAsset:
         """
         True if this asset appears to be an Android APK.
 
-        Detection uses both filename and MIME type for resilience.
+        Detection uses both filename and MIME type.
         """
 
         return (
@@ -62,6 +62,28 @@ class Release:
 
     prerelease: bool = False
     draft: bool = False
+
+    @property
+    def unix_timestamp(self) -> int:
+        """
+        Published time as a Unix timestamp.
+
+        Used for Discord / Fluxer timestamp markdown:
+        <t:TIMESTAMP:F>
+        <t:TIMESTAMP:R>
+        """
+        return int(self.published.timestamp())
+
+    @property
+    def published_markdown(self) -> str:
+        """
+        Return a Discord / Fluxer timestamp string.
+
+        Example:
+        <t:1784303640:F> (<t:1784303640:R>)
+        """
+        ts = self.unix_timestamp
+        return f"<t:{ts}:F> (<t:{ts}:R>)"
 
     @property
     def apk(self) -> ReleaseAsset | None:
@@ -116,8 +138,8 @@ class Release:
         """
         Return release notes exactly as GitHub provides them.
 
-        Fluxer supports GitHub-flavoured Markdown so formatting should
-        be preserved exactly.
+        Fluxer supports GitHub-flavoured Markdown so formatting
+        should be preserved exactly.
         """
         return self.body.strip()
 
