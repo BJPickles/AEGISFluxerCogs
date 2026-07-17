@@ -72,11 +72,6 @@ def build_release_embed(
     - Perform HTTP requests.
     - Read or write Config.
     - Send Discord messages.
-    - Modify Release objects.
-
-    Timestamp policy:
-    - All displayed timestamps MUST use release.timestamp.
-    - The release timestamp is shown ONLY in the footer.
     """
 
     embed = discord.Embed(
@@ -104,30 +99,71 @@ def build_release_embed(
         inline=True,
     )
 
-    if release.has_apk:
+    embed.add_field(
+        name="Published",
+        value=release.timestamp,
+        inline=False,
+    )
 
-        downloads = "\n".join(
-            f"• [{asset.name}]({asset.download_url})"
-            for asset in release.assets
-            if asset.is_apk
-        )
+    #
+    # ------------------------------------------------------------------
+    # APK Downloads
+    #
+    # ANTI-DRIFT
+    #
+    # GitHub releases may contain many APKs.
+    #
+    # Discord limits:
+    #   • 1024 characters per field
+    #   • 25 fields per embed
+    #
+    # Automatically split APK links across multiple fields while
+    # preserving every download link.
+    # ------------------------------------------------------------------
+    #
+
+    apk_assets = [
+        asset
+        for asset in release.assets
+        if asset.is_apk
+    ]
+
+    if not apk_assets:
 
         embed.add_field(
             name="Downloads",
-            value=downloads,
+            value="No APK asset was found in this release.",
             inline=False,
         )
 
     else:
 
-        embed.add_field(
-            name="Downloads",
-            value="No APK assets were found in this release.",
-            inline=False,
-        )
+        chunks: list[str] = []
+        current = ""
+
+        for asset in apk_assets:
+
+            line = f"• [{asset.name}]({asset.download_url})\n"
+
+            if len(current) + len(line) > 1024:
+                chunks.append(current.rstrip())
+                current = line
+            else:
+                current += line
+
+        if current:
+            chunks.append(current.rstrip())
+
+        for index, chunk in enumerate(chunks):
+
+            embed.add_field(
+                name="Downloads" if index == 0 else "Downloads (continued)",
+                value=chunk,
+                inline=False,
+            )
 
     embed.set_footer(
-        text=f"{EMBED_FOOTER} • {release.timestamp}"
+        text=EMBED_FOOTER,
     )
 
     return embed
