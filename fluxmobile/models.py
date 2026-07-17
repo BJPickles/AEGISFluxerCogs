@@ -35,8 +35,16 @@ class ReleaseAsset:
 
     @property
     def is_apk(self) -> bool:
-        """True if this asset is an Android APK."""
-        return self.name.lower().endswith(".apk")
+        """
+        True if this asset appears to be an Android APK.
+
+        Detection uses both filename and MIME type for resilience.
+        """
+
+        return (
+            self.name.lower().endswith(".apk")
+            or self.content_type == "application/vnd.android.package-archive"
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +69,7 @@ class Release:
         Return the preferred APK.
 
         Preference order:
+
         1. Universal APK
         2. First APK
         """
@@ -90,25 +99,34 @@ class Release:
 
     @property
     def version(self) -> str:
-        """Human-readable version."""
+        """
+        Human-readable version.
+
+        Prefer the Git tag, otherwise fall back to the release title.
+        """
         return self.tag or self.title
 
     @property
     def release_type(self) -> str:
-        """Release or Prerelease."""
+        """Return a user-friendly release type."""
         return "Prerelease" if self.prerelease else "Release"
 
     @property
     def release_notes(self) -> str:
         """
-        Return release notes exactly as provided by GitHub.
+        Return release notes exactly as GitHub provides them.
 
-        Fluxer supports Markdown, so formatting should be preserved.
+        Fluxer supports GitHub-flavoured Markdown so formatting should
+        be preserved exactly.
         """
         return self.body.strip()
 
     def asset_named(self, filename: str) -> ReleaseAsset | None:
-        """Return an asset by filename."""
+        """
+        Return an asset by filename.
+
+        Returns None if not found.
+        """
 
         for asset in self.assets:
             if asset.name == filename:
@@ -119,13 +137,12 @@ class Release:
 
 def release_from_github(data: dict[str, Any]) -> Release:
     """
-    Convert GitHub API JSON into a Release object.
+    Convert GitHub API JSON into a strongly typed Release object.
     """
 
     assets: list[ReleaseAsset] = []
 
     for asset in data.get("assets", []):
-
         assets.append(
             ReleaseAsset(
                 name=asset["name"],
@@ -136,7 +153,7 @@ def release_from_github(data: dict[str, Any]) -> Release:
         )
 
     published = datetime.fromisoformat(
-        data["published_at"].replace("Z", "+00:00")
+        data.get("published_at", data["created_at"]).replace("Z", "+00:00")
     )
 
     return Release(
