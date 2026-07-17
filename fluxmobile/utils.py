@@ -79,7 +79,6 @@ def build_release_embed(
         url=release.url,
         colour=colour,
         description=truncate(release.release_notes),
-        timestamp=release.published,
     )
 
     embed.add_field(
@@ -98,6 +97,12 @@ def build_release_embed(
         name="APK Files",
         value=str(release.apk_count),
         inline=True,
+    )
+
+    embed.add_field(
+        name="Published",
+        value=release.published_markdown,
+        inline=False,
     )
 
     if release.has_apk:
