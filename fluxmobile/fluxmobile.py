@@ -11,6 +11,7 @@ ANTI-DRIFT CONTRACT
 
 This module owns:
 
+
 • Red Config
 • Commands
 • Background monitoring
@@ -168,11 +169,17 @@ class FluxMobile(commands.Cog):
 
         return None
 
-    async def _verbose_log(
+        async def _verbose_log(
         self,
         guild: discord.Guild,
         message: str,
     ):
+        """
+        Send a verbose diagnostic log.
+
+        Uses Discord/Fluxer Unix timestamps so every log displays the
+        absolute time and relative time consistently.
+        """
 
         if not await self.config.guild(guild).verbose():
             return
@@ -183,12 +190,10 @@ class FluxMobile(commands.Cog):
             return
 
         try:
-            timestamp = datetime.now(
-                timezone.utc
-            ).strftime("%Y-%m-%d %H:%M:%S UTC")
+            now = int(datetime.now(timezone.utc).timestamp())
 
             await channel.send(
-                f"`[{timestamp}]` {message}"
+                f"<t:{now}:F> (<t:{now}:R>) • {message}"
             )
 
         except discord.HTTPException:
