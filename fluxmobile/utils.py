@@ -101,7 +101,7 @@ def build_release_embed(
 
     embed.add_field(
         name="Published",
-        value=release.published_markdown,
+        value=release.timestamp,
         inline=False,
     )
 
