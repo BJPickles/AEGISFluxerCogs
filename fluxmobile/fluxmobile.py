@@ -254,7 +254,7 @@ class FluxMobile(commands.Cog):
             return False
 
         colour = await resolve_embed_colour(
-            channel
+            bot
         )
 
         embed = build_release_embed(
