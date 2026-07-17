@@ -47,10 +47,12 @@ def build_release_embed(
     colour: discord.Colour,
 ) -> discord.Embed:
     """
-    Build the Discord embed for a Fluxer Mobile release.
+    Build the announcement embed.
 
-    ANTI-DRIFT:
-    This function only formats a Release object.
+    ANTI-DRIFT
+
+    This function ONLY formats a Release object.
+    It must never perform HTTP requests or access Config.
     """
 
     embed = discord.Embed(
@@ -61,25 +63,42 @@ def build_release_embed(
         timestamp=release.published,
     )
 
-    if release.has_apk:
-        embed.add_field(
-            name="APK Download",
-            value=f"[{release.apk.name}]({release.apk.download_url})",
-            inline=False,
-        )
-    else:
-        embed.add_field(
-            name="APK Download",
-            value="No APK asset found.",
-            inline=False,
-        )
-
     embed.add_field(
         name="Version",
         value=release.version,
         inline=True,
     )
 
+    embed.add_field(
+        name="Type",
+        value=release.release_type,
+        inline=True,
+    )
+
+    embed.add_field(
+        name="APK Files",
+        value=str(release.apk_count),
+        inline=True,
+    )
+
+    if release.has_apk:
+        embed.add_field(
+            name="Recommended Download",
+            value=(
+                f"[{release.apk.name}]"
+                f"({release.apk.download_url})"
+            ),
+            inline=False,
+        )
+    else:
+        embed.add_field(
+            name="Recommended Download",
+            value="No APK asset was found in this release.",
+            inline=False,
+        )
+
     embed.set_footer(text=EMBED_FOOTER)
+
+    return embed_FOOTER)
 
     return embed
