@@ -1,178 +1,110 @@
 """
-===============================================================================
- Flux Mobile
-===============================================================================
+Flux Mobile - constants.py
 
-Developed for the AEGIS Community.
+Project-wide constants.
 
-Author:
-    Five (Five#6446)
-
-Purpose
--------
-Central location for immutable project constants.
-
-This module intentionally contains NO executable code.
-
-Every other module imports values from here to avoid duplicated strings,
-magic numbers and inconsistent configuration.
-
-===============================================================================
-
-Development Status
-
-✓ Stage 1 - Constants
-□ Stage 2 - Models
-□ Stage 3 - GitHub API
-□ Stage 4 - Embeds
-□ Stage 5 - Commands
-□ Stage 6 - Background Monitor
-□ Stage 7 - Diagnostics
-□ Stage 8 - Production Ready
-
-===============================================================================
-
-ANTI-DRIFT CONTRACT
-
-This module MUST ONLY contain constants.
-
-This module MUST NEVER:
-
-• Perform HTTP requests.
-• Import Red.
-• Import Discord.
-• Import aiohttp.
-• Read or write Config.
-• Execute business logic.
-
-If executable code is required,
-it belongs in another module.
-
-===============================================================================
+This module contains immutable configuration only.
 """
 
 from typing import Final
 
-# =============================================================================
-# Project Information
-# =============================================================================
+# ---------------------------------------------------------------------------
+# Project
+# ---------------------------------------------------------------------------
 
-COG_NAME: Final[str] = "FluxMobile"
+COG_NAME: Final = "FluxMobile"
+COG_VERSION: Final = "1.0.0"
 
-COG_DESCRIPTION: Final[str] = (
-    "Automatically announces new Fluxer Mobile releases."
-)
+AUTHOR: Final = "Five"
+AUTHOR_TAG: Final = "Five#6446"
 
-COG_VERSION: Final[str] = "1.0.0"
+COMMUNITY: Final = "AEGIS"
 
-AUTHOR: Final[str] = "Five"
+# ---------------------------------------------------------------------------
+# GitHub
+# ---------------------------------------------------------------------------
 
-AUTHOR_TAG: Final[str] = "Five#6446"
+GITHUB_OWNER: Final = "fluxerapp"
+GITHUB_REPOSITORY: Final = "flutter_client"
 
-COMMUNITY: Final[str] = "AEGIS"
+GITHUB_BASE_URL: Final = "https://github.com"
+GITHUB_API_BASE: Final = "https://api.github.com"
 
-# =============================================================================
-# GitHub Repository
-#
-# This cog intentionally monitors ONE repository.
-#
-# If support for multiple repositories is ever required,
-# this module should be expanded rather than hardcoding elsewhere.
-# =============================================================================
-
-GITHUB_OWNER: Final[str] = "fluxerapp"
-
-GITHUB_REPOSITORY: Final[str] = "flutter_client"
-
-# =============================================================================
-# GitHub URLs
-# =============================================================================
-
-GITHUB_BASE_URL: Final[str] = "https://github.com"
-
-GITHUB_API_BASE: Final[str] = "https://api.github.com"
-
-GITHUB_REPOSITORY_URL: Final[str] = (
+GITHUB_REPOSITORY_URL: Final = (
     f"{GITHUB_BASE_URL}/{GITHUB_OWNER}/{GITHUB_REPOSITORY}"
 )
 
-LATEST_RELEASE_URL: Final[str] = (
-    f"{GITHUB_REPOSITORY_URL}/releases/latest"
+#
+# Human-readable releases page
+#
+RELEASES_PAGE: Final = (
+    f"{GITHUB_REPOSITORY_URL}/releases"
 )
 
-LATEST_RELEASE_API: Final[str] = (
+#
+# GitHub REST API
+#
+# NOTE:
+# Do NOT use /releases/latest.
+# Fluxer currently exposes releases through the collection endpoint,
+# where the newest entry is payload[0].
+#
+RELEASES_API: Final = (
     f"{GITHUB_API_BASE}/repos/"
     f"{GITHUB_OWNER}/"
-    f"{GITHUB_REPOSITORY}/releases/latest"
+    f"{GITHUB_REPOSITORY}/releases"
 )
 
-# =============================================================================
-# HTTP Configuration
-# =============================================================================
+# ---------------------------------------------------------------------------
+# HTTP
+# ---------------------------------------------------------------------------
 
-HTTP_TIMEOUT: Final[int] = 15
+HTTP_TIMEOUT: Final = 15
+MAX_HTTP_RETRIES: Final = 3
 
-HTTP_USER_AGENT: Final[str] = (
-    f"{COG_NAME}/{COG_VERSION} "
-    "(https://github.com/AEGIS)"
+HTTP_USER_AGENT: Final = (
+    f"{COG_NAME}/{COG_VERSION}"
 )
 
-# =============================================================================
-# Background Monitor
-# =============================================================================
+# ---------------------------------------------------------------------------
+# Monitor
+# ---------------------------------------------------------------------------
 
-DEFAULT_CHECK_INTERVAL_MINUTES: Final[int] = 30
+DEFAULT_CHECK_INTERVAL_MINUTES: Final = 30
 
-MAX_HTTP_RETRIES: Final[int] = 3
+# ---------------------------------------------------------------------------
+# Embeds
+# ---------------------------------------------------------------------------
 
-# =============================================================================
-# Embed Configuration
-#
-# The embed colour follows this priority:
-#
-# 1. Guild override (future support)
-# 2. Bot default embed colour
-# 3. DEFAULT_EMBED_COLOUR
-#
-# =============================================================================
+DEFAULT_EMBED_COLOUR: Final = 0x5865F2
 
-DEFAULT_EMBED_COLOUR: Final[int] = 0x5865F2
+EMBED_DESCRIPTION_LIMIT: Final = 4000
 
-EMBED_DESCRIPTION_LIMIT: Final[int] = 4000
+EMBED_TITLE: Final = "📱 Fluxer Mobile Updated"
 
-EMBED_TITLE: Final[str] = "📱 Fluxer Mobile Updated"
-
-EMBED_FOOTER: Final[str] = (
-    "Flux Mobile • Developed for the AEGIS Community"
+EMBED_FOOTER: Final = (
+    "Flux Mobile • AEGIS"
 )
 
-# =============================================================================
-# Asset Detection
-#
-# These file extensions are considered downloadable Android packages.
-# =============================================================================
+# ---------------------------------------------------------------------------
+# Assets
+# ---------------------------------------------------------------------------
 
-APK_EXTENSIONS: Final[tuple[str, ...]] = (
+APK_EXTENSIONS: Final = (
     ".apk",
 )
 
-# =============================================================================
+# ---------------------------------------------------------------------------
 # Logging
-# =============================================================================
+# ---------------------------------------------------------------------------
 
-LOGGER_NAME: Final[str] = "red.aegis.fluxmobile"
+LOGGER_NAME: Final = "red.aegis.fluxmobile"
 
-LOG_PREFIX: Final[str] = "[FluxMobile]"
+DEFAULT_VERBOSE_LOGGING: Final = False
 
-DEFAULT_VERBOSE_LOGGING: Final[bool] = False
-
-# =============================================================================
+# ---------------------------------------------------------------------------
 # Config Defaults
-#
-# These values are used when registering Red Config.
-#
-# Keeping them here makes future migrations easier.
-# =============================================================================
+# ---------------------------------------------------------------------------
 
 DEFAULT_GUILD = {
     "enabled": False,
@@ -186,69 +118,26 @@ DEFAULT_GUILD = {
     "verbose": DEFAULT_VERBOSE_LOGGING,
 }
 
-# =============================================================================
-# GitHub JSON Keys
-#
-# Using constants instead of hardcoded strings prevents accidental typos.
-# =============================================================================
+# ---------------------------------------------------------------------------
+# GitHub JSON
+# ---------------------------------------------------------------------------
 
-JSON_ID: Final[str] = "id"
+JSON_ID: Final = "id"
+JSON_TAG: Final = "tag_name"
+JSON_NAME: Final = "name"
+JSON_BODY: Final = "body"
+JSON_URL: Final = "html_url"
+JSON_ASSETS: Final = "assets"
+JSON_PUBLISHED: Final = "published_at"
+JSON_BROWSER_DOWNLOAD: Final = "browser_download_url"
+JSON_FILENAME: Final = "name"
 
-JSON_TAG: Final[str] = "tag_name"
+# ---------------------------------------------------------------------------
+# Logging Messages
+# ---------------------------------------------------------------------------
 
-JSON_NAME: Final[str] = "name"
-
-JSON_BODY: Final[str] = "body"
-
-JSON_URL: Final[str] = "html_url"
-
-JSON_ASSETS: Final[str] = "assets"
-
-JSON_PUBLISHED: Final[str] = "published_at"
-
-JSON_BROWSER_DOWNLOAD: Final[str] = "browser_download_url"
-
-JSON_FILENAME: Final[str] = "name"
-
-# =============================================================================
-# Diagnostic Messages
-#
-# Common log messages used throughout the project.
-# =============================================================================
-
-LOG_MONITOR_STARTED: Final[str] = "Background monitor started."
-
-LOG_MONITOR_STOPPED: Final[str] = "Background monitor stopped."
-
-LOG_CHECKING: Final[str] = "Checking GitHub for a new release..."
-
-LOG_NO_RELEASE: Final[str] = "No new release detected."
-
-LOG_NEW_RELEASE: Final[str] = "New release detected."
-
-LOG_ANNOUNCED: Final[str] = "Release announcement sent."
-
-LOG_FAILED: Final[str] = "Failed to announce release."
-
-# =============================================================================
-# End of File
-#
-# Progress
-#
-# ✓ Centralised all configuration.
-# ✓ Removed magic values.
-# ✓ Defined project-wide defaults.
-# ✓ Prepared the project for strongly typed models.
-#
-# NEXT MODULE
-#
-# models.py
-#
-# Responsibility:
-#
-# Convert raw GitHub JSON into a strongly typed Release object.
-#
-# This allows the remainder of the project to work with Python objects
-# instead of raw dictionaries.
-#
-# =============================================================================
+LOG_CHECKING: Final = "Checking GitHub..."
+LOG_NO_RELEASE: Final = "No new release."
+LOG_NEW_RELEASE: Final = "New release detected."
+LOG_ANNOUNCED: Final = "Release announced."
+LOG_FAILED: Final = "Announcement failed."
