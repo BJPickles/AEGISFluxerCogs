@@ -99,6 +99,4 @@ def build_release_embed(
 
     embed.set_footer(text=EMBED_FOOTER)
 
-    return embed_FOOTER)
-
     return embed
