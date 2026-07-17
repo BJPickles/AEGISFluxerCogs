@@ -72,6 +72,11 @@ def build_release_embed(
     - Perform HTTP requests.
     - Read or write Config.
     - Send Discord messages.
+    - Modify Release objects.
+
+    Timestamp policy:
+    - All displayed timestamps MUST use release.timestamp.
+    - The release timestamp is shown ONLY in the footer.
     """
 
     embed = discord.Embed(
@@ -99,25 +104,30 @@ def build_release_embed(
         inline=True,
     )
 
-    embed.add_field(
-        name="Published",
-        value=release.timestamp,
-        inline=False,
-    )
-
     if release.has_apk:
-        embed.add_field(
-            name="Download",
-            value=f"[{release.apk.name}]({release.apk.download_url})",
-            inline=False,
+
+        downloads = "\n".join(
+            f"• [{asset.name}]({asset.download_url})"
+            for asset in release.assets
+            if asset.is_apk
         )
-    else:
+
         embed.add_field(
-            name="Download",
-            value="No APK asset was found in this release.",
+            name="Downloads",
+            value=downloads,
             inline=False,
         )
 
-    embed.set_footer(text=EMBED_FOOTER)
+    else:
+
+        embed.add_field(
+            name="Downloads",
+            value="No APK assets were found in this release.",
+            inline=False,
+        )
+
+    embed.set_footer(
+        text=f"{EMBED_FOOTER} • {release.timestamp}"
+    )
 
     return embed
