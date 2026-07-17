@@ -80,7 +80,7 @@ DEFAULT_EMBED_COLOUR: Final = 0x5865F2
 
 EMBED_DESCRIPTION_LIMIT: Final = 4000
 
-EMBED_TITLE: Final = "📱 Fluxer Mobile Updated"
+EMBED_TITLE: Final[str] = "📱 Fluxer Mobile"
 
 EMBED_FOOTER: Final = (
     "Flux Mobile • AEGIS"
