@@ -169,7 +169,7 @@ class FluxMobile(commands.Cog):
 
         return None
 
-        async def _verbose_log(
+    async def _verbose_log(
         self,
         guild: discord.Guild,
         message: str,
@@ -198,6 +198,7 @@ class FluxMobile(commands.Cog):
 
         except discord.HTTPException:
             pass
+
 
     async def _latest_release(self) -> Release:
         """
