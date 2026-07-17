@@ -35,22 +35,39 @@ def truncate(text: str, limit: int = EMBED_DESCRIPTION_LIMIT) -> str:
 async def resolve_embed_colour(
     ctx_or_bot,
     configured: int | None = None,
+    *,
+    guild: discord.Guild | None = None,
 ) -> discord.Colour:
     """
     Resolve the embed colour.
 
     Priority:
-        1. Guild-configured override.
-        2. Red's default embed colour.
-        3. Project fallback colour.
+        1. Explicit configured override.
+        2. Red's colour from a command Context.
+        3. Red's guild colour from BotBase.
+        4. Project fallback colour.
     """
 
     if configured is not None:
         return discord.Colour(configured)
 
+    # Used by commands such as `flux latest`.
     if hasattr(ctx_or_bot, "embed_colour"):
         try:
             return await ctx_or_bot.embed_colour()
+        except Exception:
+            pass
+
+    # Used by background tasks and other non-command code.
+    if guild is not None and hasattr(ctx_or_bot, "get_embed_colour"):
+        try:
+            colour = await ctx_or_bot.get_embed_colour(guild)
+            
+            if isinstance(colour, discord.Colour):
+                return colour
+            
+            return discord.Colour(colour)
+
         except Exception:
             pass
 
