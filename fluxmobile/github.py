@@ -96,5 +96,4 @@ class GitHubClient:
             Release
         """
         payload = await self._request()
-        return rele
-ase_from_github(payload)
+        return release_from_github(payload)
