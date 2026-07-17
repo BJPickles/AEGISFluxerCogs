@@ -1,55 +1,20 @@
 """
-===============================================================================
- Flux Mobile
-===============================================================================
+Flux Mobile - models.py
 
-Developed for the AEGIS Community.
+Strongly typed models used throughout the Flux Mobile project.
 
-Author:
-    Five (Five#6446)
-
-Purpose
--------
-Strongly typed data models used throughout the Flux Mobile project.
-
-Rather than passing GitHub JSON dictionaries around the application,
-we convert them into Python objects as early as possible.
-
-This keeps the rest of the code clean, readable and type-safe.
-
-===============================================================================
-
-Development Status
-
-✓ Stage 1 - Constants
-✓ Stage 2 - Models
-□ Stage 3 - GitHub API
-□ Stage 4 - Embeds
-□ Stage 5 - Commands
-□ Stage 6 - Background Monitor
-□ Stage 7 - Diagnostics
-□ Stage 8 - Production Ready
-
-===============================================================================
-
-ANTI-DRIFT CONTRACT
+ANTI-DRIFT
 
 This module MUST:
-
-• Define data models.
-• Validate incoming data.
-• Remain immutable.
+- Define immutable data models.
+- Convert GitHub JSON into Python objects.
 
 This module MUST NEVER:
-
-• Perform HTTP requests.
-• Import Red.
-• Import Discord.
-• Read or write configuration.
-• Send messages.
-• Contain business logic.
-
-===============================================================================
+- Perform HTTP requests.
+- Import Discord.
+- Import Red.
+- Access Config.
+- Send messages.
 """
 
 from __future__ import annotations
@@ -59,21 +24,9 @@ from datetime import datetime
 from typing import Any
 
 
-# =============================================================================
-# GitHub Asset
-#
-# Represents a downloadable file attached to a GitHub Release.
-#
-# Progress
-# --------
-# ✓ Strong typing.
-# ✓ Immutable.
-# ✓ Simple helper property.
-# =============================================================================
-
 @dataclass(frozen=True, slots=True)
 class ReleaseAsset:
-    """Represents a GitHub Release asset."""
+    """Represents a downloadable GitHub Release asset."""
 
     name: str
     download_url: str
@@ -82,22 +35,13 @@ class ReleaseAsset:
 
     @property
     def is_apk(self) -> bool:
-        """Return True if this asset appears to be an Android APK."""
+        """True if this asset is an Android APK."""
         return self.name.lower().endswith(".apk")
 
 
-# =============================================================================
-# GitHub Release
-#
-# This is the primary object used throughout the project.
-#
-# Once created, every module should use Release objects rather than raw JSON.
-#
-# =============================================================================
-
 @dataclass(frozen=True, slots=True)
 class Release:
-    """Represents the latest GitHub Release."""
+    """Represents a GitHub Release."""
 
     id: int
     tag: str
@@ -109,23 +53,25 @@ class Release:
     assets: tuple[ReleaseAsset, ...] = field(default_factory=tuple)
 
     prerelease: bool = False
-
     draft: bool = False
-
-    # -------------------------------------------------------------------------
-    # Helper Properties
-    # -------------------------------------------------------------------------
 
     @property
     def apk(self) -> ReleaseAsset | None:
         """
-        Return the first APK asset.
+        Return the preferred APK.
 
-        Returns
-        -------
-        ReleaseAsset | None
-            APK asset if present.
+        Preference order:
+        1. Universal APK
+        2. First APK
         """
+
+        for asset in self.assets:
+            if (
+                asset.is_apk
+                and "universal" in asset.name.lower()
+            ):
+                return asset
+
         for asset in self.assets:
             if asset.is_apk:
                 return asset
@@ -134,60 +80,46 @@ class Release:
 
     @property
     def has_apk(self) -> bool:
-        """Convenience property."""
+        """True if at least one APK exists."""
         return self.apk is not None
 
     @property
-    def version(self) -> str:
-        """
-        Human-readable version.
+    def apk_count(self) -> int:
+        """Return the number of APK assets."""
+        return sum(asset.is_apk for asset in self.assets)
 
-        Falls back to title if tag is empty.
-        """
+    @property
+    def version(self) -> str:
+        """Human-readable version."""
         return self.tag or self.title
+
+    @property
+    def release_type(self) -> str:
+        """Release or Prerelease."""
+        return "Prerelease" if self.prerelease else "Release"
 
     @property
     def release_notes(self) -> str:
         """
-        Return cleaned release notes.
+        Return release notes exactly as provided by GitHub.
 
-        Future versions may perform Markdown cleanup here.
-
-        Keeping this property centralised prevents formatting logic from
-        spreading throughout the project.
+        Fluxer supports Markdown, so formatting should be preserved.
         """
         return self.body.strip()
 
+    def asset_named(self, filename: str) -> ReleaseAsset | None:
+        """Return an asset by filename."""
 
-# =============================================================================
-# Factory Functions
-#
-# These functions convert raw GitHub API responses into Release objects.
-#
-# Keeping conversion logic inside this module means github.py remains focused
-# purely on HTTP communication.
-# =============================================================================
+        for asset in self.assets:
+            if asset.name == filename:
+                return asset
+
+        return None
+
 
 def release_from_github(data: dict[str, Any]) -> Release:
     """
     Convert GitHub API JSON into a Release object.
-
-    Parameters
-    ----------
-    data
-        JSON response from GitHub.
-
-    Returns
-    -------
-    Release
-
-    Raises
-    ------
-    KeyError
-        If mandatory GitHub fields are missing.
-
-    ValueError
-        If dates cannot be parsed.
     """
 
     assets: list[ReleaseAsset] = []
@@ -218,35 +150,3 @@ def release_from_github(data: dict[str, Any]) -> Release:
         prerelease=data.get("prerelease", False),
         draft=data.get("draft", False),
     )
-
-
-# =============================================================================
-# End of File
-#
-# Progress
-#
-# ✓ Created immutable Release model.
-# ✓ Created immutable ReleaseAsset model.
-# ✓ Centralised GitHub JSON conversion.
-# ✓ Eliminated raw dictionaries from the remainder of the project.
-#
-# Design Achievement
-# ------------------
-#
-# Every other module now works with Python objects instead of JSON.
-#
-# This significantly reduces runtime errors and improves readability.
-#
-# NEXT MODULE
-#
-# github.py
-#
-# Responsibilities
-#
-# • Create aiohttp session.
-# • Query GitHub REST API.
-# • Return Release objects.
-# • Never interact with Discord.
-# • Never access Red Config.
-#
-# =============================================================================
