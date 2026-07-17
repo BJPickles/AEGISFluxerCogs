@@ -42,15 +42,17 @@ async def resolve_embed_colour(ctx_or_bot, configured: int | None = None) -> dis
     return discord.Colour(DEFAULT_EMBED_COLOUR)
 
 
-def build_release_embed(release: Release, colour: discord.Colour) -> discord.Embed:
+def build_release_embed(
+    release: Release,
+    colour: discord.Colour,
+) -> discord.Embed:
     """
-    ANTI-DRIFT CONTRACT
+    Build the Discord embed for a Fluxer Mobile release.
 
-    Builds embeds only.
-    No HTTP.
-    No Config.
-    No Discord sending.
+    ANTI-DRIFT:
+    This function only formats a Release object.
     """
+
     embed = discord.Embed(
         title=f"{EMBED_TITLE} — {release.version}",
         url=release.url,
@@ -65,8 +67,19 @@ def build_release_embed(release: Release, colour: discord.Colour) -> discord.Emb
             value=f"[{release.apk.name}]({release.apk.download_url})",
             inline=False,
         )
+    else:
+        embed.add_field(
+            name="APK Download",
+            value="No APK asset found.",
+            inline=False,
+        )
 
-    embed.add_field(name="Version", value=release.version)
+    embed.add_field(
+        name="Version",
+        value=release.version,
+        inline=True,
+    )
+
     embed.set_footer(text=EMBED_FOOTER)
-   
-  return embed
+
+    return embed
