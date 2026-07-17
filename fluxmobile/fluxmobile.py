@@ -244,6 +244,8 @@ class FluxMobile(commands.Cog):
         self,
         guild: discord.Guild,
         release: Release,
+        *,
+        colour_source=None,
     ) -> bool:
 
         channel = await self._announcement_channel(
@@ -252,9 +254,16 @@ class FluxMobile(commands.Cog):
 
         if channel is None:
             return False
+        
+        source = (
+            colour_source
+            if colour_source is not None
+            else self.bot
+        )
 
         colour = await resolve_embed_colour(
-            self.bot
+            source,
+            guild=guild,
         )
 
         embed = build_release_embed(
@@ -549,6 +558,7 @@ class FluxMobile(commands.Cog):
         success = await self._send_release(
             ctx.guild,
             release,
+            colour_source=ctx,
         )
 
         if success:
