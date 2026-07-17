@@ -99,26 +99,18 @@ def build_release_embed(
         inline=True,
     )
 
-    embed.add_field(
-        name="Published",
-        value=release.timestamp,
-        inline=False,
-    )
-
     #
     # ------------------------------------------------------------------
     # APK Downloads
     #
     # ANTI-DRIFT
     #
-    # GitHub releases may contain many APKs.
+    # List every APK asset included in the GitHub release.
     #
-    # Discord limits:
-    #   • 1024 characters per field
-    #   • 25 fields per embed
+    # Discord limits each embed field to 1024 characters, so split the
+    # list automatically across multiple fields when required.
     #
-    # Automatically split APK links across multiple fields while
-    # preserving every download link.
+    # This function performs formatting only.
     # ------------------------------------------------------------------
     #
 
@@ -128,7 +120,39 @@ def build_release_embed(
         if asset.is_apk
     ]
 
-    if not apk_assets:
+    if apk_assets:
+
+        fields: list[str] = []
+        current = ""
+
+        for asset in apk_assets:
+
+            line = (
+                f"• [{asset.name}]"
+                f"({asset.download_url})\n"
+            )
+
+            if len(current) + len(line) > 1024:
+                fields.append(current.rstrip())
+                current = line
+            else:
+                current += line
+
+        if current:
+            fields.append(current.rstrip())
+
+        for index, value in enumerate(fields):
+            embed.add_field(
+                name=(
+                    "Downloads"
+                    if index == 0
+                    else "Downloads (continued)"
+                ),
+                value=value,
+                inline=False,
+            )
+
+    else:
 
         embed.add_field(
             name="Downloads",
@@ -136,34 +160,22 @@ def build_release_embed(
             inline=False,
         )
 
-    else:
-
-        chunks: list[str] = []
-        current = ""
-
-        for asset in apk_assets:
-
-            line = f"• [{asset.name}]({asset.download_url})\n"
-
-            if len(current) + len(line) > 1024:
-                chunks.append(current.rstrip())
-                current = line
-            else:
-                current += line
-
-        if current:
-            chunks.append(current.rstrip())
-
-        for index, chunk in enumerate(chunks):
-
-            embed.add_field(
-                name="Downloads" if index == 0 else "Downloads (continued)",
-                value=chunk,
-                inline=False,
-            )
+    #
+    # ------------------------------------------------------------------
+    # Footer
+    #
+    # ANTI-DRIFT
+    #
+    # Fluxer renders Discord timestamps correctly inside embed footers.
+    #
+    # The footer is therefore the canonical location for the published
+    # timestamp. Do NOT duplicate this information elsewhere in the
+    # embed.
+    # ------------------------------------------------------------------
+    #
 
     embed.set_footer(
-        text=EMBED_FOOTER,
+        text=f"{EMBED_FOOTER} • {release.timestamp}"
     )
 
     return embed
