@@ -1,0 +1,27 @@
+{
+    "author": [
+        "Five"
+    ],
+    "name": "FluxMobile",
+    "short": "Announce new Fluxer Mobile releases.",
+    "description": "Automatically monitors the Fluxer Mobile GitHub repository and announces new Android APK releases to a configured channel. Includes duplicate protection, verbose logging, diagnostics and manual checking.",
+    "install_msg": "Thank you for installing FluxMobile! Configure it with `[p]flux channel`, `[p]flux logs`, then `[p]flux enable`.",
+    "end_user_data_statement": "This cog stores guild configuration including channel IDs, logging preferences and the ID of the last announced release. No personal data is collected.",
+    "min_bot_version": "3.5.0",
+    "max_bot_version": "0.0.0",
+    "hidden": false,
+    "disabled": false,
+    "required_cogs": {},
+    "requirements": [
+        "aiohttp"
+    ],
+    "tags": [
+        "fluxer",
+        "mobile",
+        "github",
+        "releases",
+        "apk",
+        "aegis"
+    ],
+    "type": "COG"
+}
