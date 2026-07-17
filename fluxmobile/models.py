@@ -67,21 +67,22 @@ class Release:
     def unix_timestamp(self) -> int:
         """
         Published time as a Unix timestamp.
-
-        Used for Discord / Fluxer timestamp markdown:
-        <t:TIMESTAMP:F>
-        <t:TIMESTAMP:R>
         """
+
         return int(self.published.timestamp())
 
     @property
-    def published_markdown(self) -> str:
+    def timestamp(self) -> str:
         """
-        Return a Discord / Fluxer timestamp string.
+        Return a Fluxer / Discord formatted timestamp.
 
         Example:
         <t:1784303640:F> (<t:1784303640:R>)
+
+        This property is the canonical timestamp representation used
+        throughout the entire project (embeds, logs and diagnostics).
         """
+
         ts = self.unix_timestamp
         return f"<t:{ts}:F> (<t:{ts}:R>)"
 
@@ -117,6 +118,7 @@ class Release:
     @property
     def apk_count(self) -> int:
         """Return the number of APK assets."""
+
         return sum(asset.is_apk for asset in self.assets)
 
     @property
@@ -126,11 +128,15 @@ class Release:
 
         Prefer the Git tag, otherwise fall back to the release title.
         """
+
         return self.tag or self.title
 
     @property
     def release_type(self) -> str:
-        """Return a user-friendly release type."""
+        """
+        Return a user-friendly release type.
+        """
+
         return "Prerelease" if self.prerelease else "Release"
 
     @property
@@ -141,6 +147,7 @@ class Release:
         Fluxer supports GitHub-flavoured Markdown so formatting
         should be preserved exactly.
         """
+
         return self.body.strip()
 
     def asset_named(self, filename: str) -> ReleaseAsset | None:
