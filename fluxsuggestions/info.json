@@ -1,1 +1,32 @@
-
+{
+    "author": [
+        "Five"
+    ],
+    "name": "FluxSuggestions",
+    "short": "A lightweight reaction-based suggestion board for Fluxer.",
+    "description": "Allows community members to submit anonymous suggestions which are posted to a configured pending channel with native thumbs-up and thumbs-down reactions. Red staff can approve or reject suggestions into configured result channels.",
+    "install_msg": "Thank you for installing Flux Suggestions! Configure it with `[p]suggestions set pending #channel`, `[p]suggestions set approved #channel`, and `[p]suggestions set rejected #channel`.",
+    "end_user_data_statement": "This cog stores guild channel settings and aggregate suggestion statistics. While a suggestion is pending, it also stores the author's user ID, suggestion text, source channel ID, message ID, and submission time. Pending records are removed after approval, rejection, or a Red data-deletion request. Approved and rejected messages posted in community channels remain until community staff delete them.",
+    "min_bot_version": "3.5.0",
+    "max_bot_version": "0.0.0",
+    "min_python_version": [
+        3,
+        8,
+        0
+    ],
+    "hidden": false,
+    "disabled": false,
+    "permissions": [],
+    "required_cogs": {},
+    "requirements": [],
+    "tags": [
+        "fluxer",
+        "suggestions",
+        "ideas",
+        "reactions",
+        "voting",
+        "community",
+        "aegis"
+    ],
+    "type": "COG"
+}
