@@ -95,7 +95,10 @@ def build_release_embed(
         title=f"{EMBED_TITLE} • {release.version}",
         url=release.url,
         colour=colour,
-        description=truncate(release.release_notes),
+        description=(
+            truncate(release.release_notes)
+            or "No release notes were provided."
+        ),
     )
 
     embed.add_field(
