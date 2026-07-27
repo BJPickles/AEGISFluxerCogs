@@ -91,10 +91,15 @@ class QuestionStorage:
             current_revision=0,
             revisions=[],
             status="pending",
-            votes=None,
-            answer=None,
-            removal=None,
-            operation=None,
+            # These fields are semantically optional, but their registered
+            # defaults must be dictionaries because Red's Group.all() merges
+            # stored mappings recursively with registered defaults. A None
+            # default combined with a later stored dict triggers Red's known
+            # "non-dict default with a dict value" Config failure.
+            votes={},
+            answer={},
+            removal={},
+            operation={},
         )
 
         # (guild_id, source_message_id) -> question_number
