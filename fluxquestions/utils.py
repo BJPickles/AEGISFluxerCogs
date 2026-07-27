@@ -449,4 +449,3 @@ def ids_added_removed(
     after_ids = set(unique_positive_ids(after))
 
     return sorted(after_ids - before_ids), sorted(before_ids - after_ids)
-  

@@ -580,3 +580,302 @@ class QuestionStorage:
             }
             record["operation"] = {
                 "type": "answer",
+                "actor_id": operator_id,
+                "started_at": timestamp,
+            }
+
+            await self._question_scope(guild_id, number).set(record)
+            return deepcopy(record)
+
+    async def complete_answer(
+        self,
+        guild_id: int,
+        number: int,
+        *,
+        channel_id: int,
+        message_id: int,
+    ) -> Dict[str, Any]:
+        guild_id = self._positive_int(guild_id, "guild_id")
+        channel_id = self._positive_int(channel_id, "channel_id")
+        message_id = self._positive_int(message_id, "message_id")
+
+        async with self.lock_for(guild_id):
+            record = await self.require_question(guild_id, number)
+
+            # Idempotent completion helps crash recovery attach a discovered
+            # answer message without double-counting it.
+            if record["status"] == "answered":
+                answer = record.get("answer") or {}
+                if answer.get("channel_id") == channel_id and answer.get("message_id") == message_id:
+                    return deepcopy(record)
+                raise StorageConflict(f"Question #{number} is already answered elsewhere.")
+
+            operation = record.get("operation") or {}
+            if record["status"] != "pending" or operation.get("type") != "answer":
+                raise StorageConflict(f"Question #{number} has no staged answer.")
+
+            answer = record.get("answer")
+            if not isinstance(answer, dict):
+                raise StorageConflict(f"Question #{number} has invalid answer state.")
+
+            answer["channel_id"] = channel_id
+            answer["message_id"] = message_id
+            record["answer"] = answer
+            record["status"] = "answered"
+            record["operation"] = None
+
+            await self._question_scope(guild_id, number).set(record)
+
+            guild_scope = self.config.guild_from_id(guild_id)
+            await guild_scope.answered.set(
+                max(0, int(await guild_scope.answered())) + 1
+            )
+            return deepcopy(record)
+
+    async def abort_answer(self, guild_id: int, number: int) -> Dict[str, Any]:
+        """Clear a staged answer after a handled send failure."""
+
+        guild_id = self._positive_int(guild_id, "guild_id")
+
+        async with self.lock_for(guild_id):
+            record = await self.require_question(guild_id, number)
+            operation = record.get("operation") or {}
+
+            if record["status"] != "pending":
+                raise StorageConflict("Only pending questions can abort an answer.")
+            if operation.get("type") != "answer":
+                return deepcopy(record)
+
+            record["votes"] = None
+            record["answer"] = None
+            record["operation"] = None
+            await self._question_scope(guild_id, number).set(record)
+            return deepcopy(record)
+
+    async def edit_answer(
+        self,
+        guild_id: int,
+        number: int,
+        *,
+        new_content: str,
+        editor_id: int,
+        kind: str = "answer_edit",
+        reverted_from_revision: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        guild_id = self._positive_int(guild_id, "guild_id")
+        editor_id = self._positive_int(editor_id, "editor_id")
+        content = self._content(new_content)
+        if not content:
+            raise ValueError("Answer content cannot be empty.")
+
+        async with self.lock_for(guild_id):
+            record = await self.require_question(guild_id, number)
+            if record["status"] != "answered":
+                raise StorageConflict(f"Question #{number} has not been answered.")
+
+            answer = record.get("answer")
+            if not isinstance(answer, dict):
+                raise StorageConflict(f"Question #{number} has no stored answer.")
+            if content == answer.get("content"):
+                return deepcopy(record)
+
+            timestamp = self.unix_now()
+            revision_number = int(answer.get("current_revision") or 0) + 1
+            revision: Dict[str, Any] = {
+                "revision": revision_number,
+                "content": content,
+                "editor_id": editor_id,
+                "created_at": timestamp,
+                "kind": str(kind or "answer_edit").lower(),
+            }
+            if reverted_from_revision is not None:
+                revision["reverted_from_revision"] = self._positive_int(
+                    reverted_from_revision,
+                    "reverted_from_revision",
+                )
+
+            answer["content"] = content
+            answer["edited_at"] = timestamp
+            answer["current_revision"] = revision_number
+            answer.setdefault("revisions", []).append(revision)
+            record["answer"] = answer
+            await self._question_scope(guild_id, number).set(record)
+            return deepcopy(record)
+
+    async def attach_answer_message(
+        self,
+        guild_id: int,
+        number: int,
+        *,
+        channel_id: int,
+        message_id: int,
+    ) -> Dict[str, Any]:
+        """Update an answered question after its answer message is recreated."""
+
+        guild_id = self._positive_int(guild_id, "guild_id")
+        channel_id = self._positive_int(channel_id, "channel_id")
+        message_id = self._positive_int(message_id, "message_id")
+
+        async with self.lock_for(guild_id):
+            record = await self.require_question(guild_id, number)
+            if record["status"] != "answered" or not isinstance(record.get("answer"), dict):
+                raise StorageConflict(f"Question #{number} is not answered.")
+
+            record["answer"]["channel_id"] = channel_id
+            record["answer"]["message_id"] = message_id
+            await self._question_scope(guild_id, number).set(record)
+            return deepcopy(record)
+
+    # ------------------------------------------------------------------
+    # Soft removal
+    # ------------------------------------------------------------------
+
+    async def remove_question(
+        self,
+        guild_id: int,
+        number: int,
+        *,
+        actor_id: int,
+        reason: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        guild_id = self._positive_int(guild_id, "guild_id")
+        actor_id = self._positive_int(actor_id, "actor_id")
+
+        async with self.lock_for(guild_id):
+            record = await self.require_question(guild_id, number)
+            if record["status"] == "removed":
+                return deepcopy(record)
+            if record["status"] != "pending":
+                raise StorageConflict("Only pending questions use soft removal.")
+            if record.get("operation") is not None:
+                raise StorageConflict(f"Question #{number} has an unfinished operation.")
+
+            record["status"] = "removed"
+            record["removal"] = {
+                "actor_id": actor_id,
+                "created_at": self.unix_now(),
+                "reason": self._content(reason) or None,
+            }
+
+            # Store the removal before deleting the pending Fluxer message.
+            await self._question_scope(guild_id, number).set(record)
+
+            guild_scope = self.config.guild_from_id(guild_id)
+            await guild_scope.removed.set(
+                max(0, int(await guild_scope.removed())) + 1
+            )
+            return deepcopy(record)
+
+    # ------------------------------------------------------------------
+    # Restart / crash reconciliation
+    # ------------------------------------------------------------------
+
+    async def reconcile_guild(self, guild_id: int) -> Dict[str, Any]:
+        """Repair derived state and report work the main cog should resynchronise.
+
+        This method performs Config I/O only. It deliberately does not fetch,
+        post, edit or delete Fluxer messages; ``fluxquestions.py`` will use this
+        report during cog startup to reconcile the live messages with the
+        canonical records stored here.
+        """
+
+        guild_id = self._positive_int(guild_id, "guild_id")
+
+        async with self.lock_for(guild_id):
+            records = await self.list_questions(guild_id)
+            canonical_sources: Dict[int, int] = {}
+            source_conflicts: List[Dict[str, int]] = []
+
+            for record in records:
+                source_message_id = self._optional_int(record.get("source_message_id"))
+                if source_message_id is None:
+                    continue
+
+                if source_message_id in canonical_sources:
+                    source_conflicts.append(
+                        {
+                            "source_message_id": source_message_id,
+                            "first_question": canonical_sources[source_message_id],
+                            "duplicate_question": int(record["number"]),
+                        }
+                    )
+                    continue
+
+                canonical_sources[source_message_id] = int(record["number"])
+
+            # Remove stale/wrong source indexes.
+            raw_indexes = await self.config.custom(SOURCE_GROUP, guild_id).all()
+            if isinstance(raw_indexes, dict):
+                for source_text, raw in raw_indexes.items():
+                    source_message_id = self._optional_int(source_text)
+                    if source_message_id is None:
+                        continue
+
+                    expected = canonical_sources.get(source_message_id)
+                    indexed = (
+                        self._optional_int(raw.get("question_number"))
+                        if isinstance(raw, dict)
+                        else None
+                    )
+                    if expected is None or indexed != expected:
+                        await self._source_scope(guild_id, source_message_id).clear()
+
+            # Rebuild the canonical index from permanent records.
+            records_by_number = {int(item["number"]): item for item in records}
+            for source_message_id, number in canonical_sources.items():
+                record = records_by_number[number]
+                await self._source_scope(guild_id, source_message_id).set(
+                    {
+                        "question_number": number,
+                        "created_at": int(record["created_at"]),
+                    }
+                )
+
+            max_number = max(
+                (int(record["number"]) for record in records),
+                default=0,
+            )
+            answered = sum(1 for record in records if record["status"] == "answered")
+            removed = sum(1 for record in records if record["status"] == "removed")
+
+            guild_scope = self.config.guild_from_id(guild_id)
+            current_counter = max(0, int(await guild_scope.counter()))
+
+            # Never lower the counter: a crash may have reserved an unused number.
+            counter = max(current_counter, max_number)
+            await guild_scope.counter.set(counter)
+            await guild_scope.submitted.set(len(records))
+            await guild_scope.answered.set(answered)
+            await guild_scope.removed.set(removed)
+            await guild_scope.schema.set(GUILD_SCHEMA)
+
+            return {
+                "guild_id": guild_id,
+                "counter": counter,
+                "records": len(records),
+                "answered": answered,
+                "removed": removed,
+                "pending": [
+                    deepcopy(record)
+                    for record in records
+                    if record["status"] == "pending"
+                ],
+                "incomplete_operations": [
+                    deepcopy(record)
+                    for record in records
+                    if record.get("operation") is not None
+                ],
+                "source_conflicts": source_conflicts,
+            }
+
+    async def guild_statistics(self, guild_id: int) -> Dict[str, int]:
+        guild_id = self._positive_int(guild_id, "guild_id")
+        guild_scope = self.config.guild_from_id(guild_id)
+
+        return {
+            "counter": max(0, int(await guild_scope.counter())),
+            "submitted": max(0, int(await guild_scope.submitted())),
+            "answered": max(0, int(await guild_scope.answered())),
+            "removed": max(0, int(await guild_scope.removed())),
+            "pending": len(await self.list_questions(guild_id, status="pending")),
+        }

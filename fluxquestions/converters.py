@@ -334,4 +334,3 @@ class QuestionEmoji(commands.Converter):
             return False
 
         return has_emojiish_character
-      

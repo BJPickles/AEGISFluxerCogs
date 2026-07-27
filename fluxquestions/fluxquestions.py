@@ -34,7 +34,7 @@ from .embeds import (
     build_answer_embeds,
     build_answer_log_embed,
     build_audit_embed,
-    build_author_edit_dm_embed,
+    build_author_edit_dm_embeds,
     build_author_edit_success_embed,
     build_config_change_log_embed,
     build_error_log_embed,
@@ -1623,7 +1623,7 @@ class FluxQuestions(commands.Cog):
 
         try:
             await ctx.author.send(
-                embed=build_author_edit_dm_embed(
+                embeds=build_author_edit_dm_embeds(
                     record,
                     edit_deadline=deadline,
                 ),

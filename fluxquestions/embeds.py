@@ -702,4 +702,599 @@ def build_revision_history_embed(
             kind = _text(revision.get("kind")) or "edit"
             content = _text(revision.get("content"))
 
-            heading = f"Revision {revision_number} • {kind
+            heading = f"Revision {revision_number} • {kind.replace('_', ' ').title()}"
+
+            details = [
+                f"**Editor:** {editor}",
+                f"**Time:** {format_timestamp(revision.get('created_at'))}",
+            ]
+
+            reverted_from = positive_int(revision.get("reverted_from_revision"))
+            if reverted_from:
+                details.append(
+                    f"**Reverted from revision:** {reverted_from}"
+                )
+
+            preview = truncate_middle(content, 700)
+            value = "\n".join(details) + "\n\n" + raw_markdown_codeblock(preview)
+
+            embed.add_field(
+                name=_safe_field_name(heading),
+                value=_safe_field_value(value),
+                inline=False,
+            )
+
+    _set_footer(
+        embed,
+        f"Page {page}/{total_pages} • {total} revision(s) • {question_label(number)}",
+    )
+    return embed
+
+
+# ---------------------------------------------------------------------------
+# DM workflow embeds
+# ---------------------------------------------------------------------------
+
+
+def build_author_edit_dm_embeds(
+    record: Mapping[str, Any],
+    *,
+    edit_deadline: int,
+) -> List[discord.Embed]:
+    """Build the DM cards for the timed author edit workflow.
+
+    The instructions and raw Markdown are deliberately separated. This lets a
+    maximum-length question remain fully copyable without pushing instructions
+    over the embed description limit. If an extreme backtick sequence makes a
+    single fenced block too large, the raw text is split across consecutive
+    fenced embeds without discarding content.
+    """
+
+    number = _record_number(record)
+    content = _text(record.get("content"))
+
+    instructions = discord.Embed(
+        title=f"✏️ Editing {question_label(number)}",
+        description=(
+            "Copy the raw Markdown shown below, make your changes, then send "
+            "the corrected version back to me in this DM."
+        ),
+        colour=discord.Colour(EDIT_COLOUR),
+    )
+    instructions.add_field(
+        name="Edit deadline",
+        value=_safe_field_value(format_timestamp(edit_deadline)),
+        inline=False,
+    )
+    _set_footer(
+        instructions,
+        "Your next DM message will be treated as the replacement question",
+    )
+
+    raw_embeds: List[discord.Embed] = []
+    remaining = content
+
+    # Most questions fit in one 4,096-character description. The loop exists
+    # for pathological content containing unusually long backtick runs.
+    while remaining:
+        chunk_size = min(len(remaining), 3950)
+        chunk = remaining[:chunk_size]
+        block = raw_markdown_codeblock(chunk)
+
+        while len(block) > EMBED_DESCRIPTION_LIMIT and chunk_size > 1:
+            chunk_size = max(1, chunk_size - 100)
+            chunk = remaining[:chunk_size]
+            block = raw_markdown_codeblock(chunk)
+
+        if len(block) > EMBED_DESCRIPTION_LIMIT:
+            # A sequence made entirely of thousands of backticks cannot be
+            # safely fenced within one embed. Preserve it verbatim as plain
+            # preformatted-looking content rather than deleting any text.
+            block = chunk
+
+        raw_embed = discord.Embed(
+            title="Current question — raw Markdown",
+            description=block,
+            colour=discord.Colour(EDIT_COLOUR),
+        )
+        raw_embeds.append(raw_embed)
+        remaining = remaining[chunk_size:]
+
+    if not raw_embeds:
+        raw_embeds.append(
+            discord.Embed(
+                title="Current question — raw Markdown",
+                description=raw_markdown_codeblock(""),
+                colour=discord.Colour(EDIT_COLOUR),
+            )
+        )
+
+    total_parts = len(raw_embeds)
+    for index, raw_embed in enumerate(raw_embeds, start=1):
+        suffix = f" • Part {index}/{total_parts}" if total_parts > 1 else ""
+        _set_footer(
+            raw_embed,
+            f"Copy this text to edit {question_label(number)}{suffix}",
+        )
+
+    return [instructions, *raw_embeds]
+
+
+def build_author_edit_success_embed(
+    record: Mapping[str, Any],
+) -> discord.Embed:
+    """Build the DM confirmation shown after a successful author edit."""
+
+    number = _record_number(record)
+
+    embed = discord.Embed(
+        title=f"✅ {question_label(number)} Updated",
+        description=_text(record.get("content")),
+        colour=discord.Colour(ANSWER_COLOUR),
+    )
+
+    embed.add_field(
+        name="Updated",
+        value=_safe_field_value(format_timestamp(record.get("edited_at"))),
+        inline=False,
+    )
+
+    _set_footer(embed, "The pending question was edited in place; votes were preserved")
+    return embed
+
+
+# ---------------------------------------------------------------------------
+# Settings / statistics
+# ---------------------------------------------------------------------------
+
+
+def build_settings_embed(
+    *,
+    questions_channel: str,
+    answers_channel: str,
+    log_channel: str,
+    question_emoji: str,
+    submitter_roles: str,
+    editor_roles: str,
+    operator_roles: str,
+    source_channels: str,
+    author_edit_window: str,
+    submitted: int,
+    pending: int,
+    answered: int,
+    removed: int,
+    next_number: int,
+    version: str,
+) -> discord.Embed:
+    """Build the guild's main FluxQuestions settings/status embed."""
+
+    embed = discord.Embed(
+        title="Flux Questions Settings",
+        colour=discord.Colour(QUESTION_COLOUR),
+    )
+
+    embed.add_field(
+        name="Questions channel",
+        value=_safe_field_value(questions_channel),
+        inline=False,
+    )
+    embed.add_field(
+        name="Answers channel",
+        value=_safe_field_value(answers_channel),
+        inline=False,
+    )
+    embed.add_field(
+        name="Verbose log channel",
+        value=_safe_field_value(log_channel),
+        inline=False,
+    )
+    embed.add_field(
+        name="Submission emoji",
+        value=_safe_field_value(question_emoji),
+        inline=True,
+    )
+    embed.add_field(
+        name="Author edit window",
+        value=_safe_field_value(author_edit_window),
+        inline=True,
+    )
+    embed.add_field(
+        name="Next question",
+        value=f"#{max(1, int(next_number))}",
+        inline=True,
+    )
+
+    embed.add_field(
+        name="Submitter roles",
+        value=_safe_field_value(submitter_roles or "None"),
+        inline=False,
+    )
+    embed.add_field(
+        name="Editor roles",
+        value=_safe_field_value(editor_roles or "None"),
+        inline=False,
+    )
+    embed.add_field(
+        name="Operator roles",
+        value=_safe_field_value(operator_roles or "None"),
+        inline=False,
+    )
+    embed.add_field(
+        name="Allowed source channels",
+        value=_safe_field_value(
+            source_channels or "All channels where the bot can read messages"
+        ),
+        inline=False,
+    )
+
+    embed.add_field(
+        name="Records",
+        value=(
+            f"Submitted: **{max(0, int(submitted))}**\n"
+            f"Pending: **{max(0, int(pending))}**\n"
+            f"Answered: **{max(0, int(answered))}**\n"
+            f"Removed: **{max(0, int(removed))}**"
+        ),
+        inline=False,
+    )
+
+    _set_footer(embed, f"Flux Questions v{version}")
+    return embed
+
+
+# ---------------------------------------------------------------------------
+# Human-readable audit logging
+# ---------------------------------------------------------------------------
+
+
+def build_audit_embed(
+    *,
+    title: str,
+    actor_label: Optional[str],
+    occurred_at: Any,
+    description: Optional[str] = None,
+    question_number: Optional[int] = None,
+    fields: Optional[Sequence[Mapping[str, Any]]] = None,
+    jump_url: Optional[str] = None,
+    colour: int = LOG_COLOUR,
+) -> discord.Embed:
+    """Build a generic structured staff audit entry."""
+
+    embed = discord.Embed(
+        title=_text(title) or "Flux Questions Log",
+        description=(
+            truncate_middle(description, MAX_LOG_TEXT_LENGTH)
+            if description
+            else None
+        ),
+        colour=discord.Colour(colour),
+    )
+
+    if question_number:
+        embed.add_field(
+            name="Question",
+            value=question_label(question_number),
+            inline=True,
+        )
+
+    if actor_label:
+        embed.add_field(
+            name="Actor",
+            value=_safe_field_value(actor_label),
+            inline=True,
+        )
+
+    embed.add_field(
+        name="Time",
+        value=_safe_field_value(format_timestamp(occurred_at)),
+        inline=False,
+    )
+
+    for field in fields or []:
+        name = _text(field.get("name"))
+        value = field.get("value")
+
+        if not name or value is None:
+            continue
+
+        embed.add_field(
+            name=_safe_field_name(name),
+            value=_safe_field_value(value),
+            inline=bool(field.get("inline", False)),
+        )
+
+    if jump_url:
+        embed.add_field(
+            name="Message",
+            value=f"[Jump to message]({jump_url})",
+            inline=False,
+        )
+
+    _set_footer(embed, "Flux Questions verbose audit log")
+    return embed
+
+
+def build_submission_log_embed(
+    record: Mapping[str, Any],
+    *,
+    author_label: str,
+    submitter_label: str,
+    source_label: Optional[str] = None,
+    source_jump_url: Optional[str] = None,
+) -> discord.Embed:
+    """Build the verbose log entry for a newly submitted question."""
+
+    number = _record_number(record)
+
+    fields: List[Dict[str, Any]] = [
+        {"name": "Author", "value": author_label, "inline": True},
+        {"name": "Submitted by", "value": submitter_label, "inline": True},
+    ]
+
+    if source_label:
+        fields.append(
+            {"name": "Source", "value": source_label, "inline": False}
+        )
+
+    fields.append(
+        {
+            "name": "Question text",
+            "value": raw_markdown_codeblock(
+                truncate_middle(
+                    _text(record.get("content")),
+                    760,
+                )
+            ),
+            "inline": False,
+        }
+    )
+
+    return build_audit_embed(
+        title=f"📝 Question Submitted — #{number}",
+        actor_label=submitter_label,
+        occurred_at=record.get("created_at"),
+        question_number=number,
+        fields=fields,
+        jump_url=source_jump_url,
+        colour=QUESTION_COLOUR,
+    )
+
+
+def build_question_edit_log_embed(
+    *,
+    record: Mapping[str, Any],
+    actor_label: str,
+    before: str,
+    after: str,
+    edit_kind: str,
+) -> discord.Embed:
+    """Build a before/after audit entry for question edits and reverts."""
+
+    number = _record_number(record)
+
+    return build_audit_embed(
+        title=f"✏️ Question Edited — #{number}",
+        actor_label=actor_label,
+        occurred_at=record.get("edited_at"),
+        question_number=number,
+        fields=[
+            {
+                "name": "Edit type",
+                "value": _text(edit_kind).replace("_", " ").title(),
+                "inline": False,
+            },
+            {
+                "name": "Previous question",
+                "value": raw_markdown_codeblock(
+                    truncate_middle(before, 740)
+                ),
+                "inline": False,
+            },
+            {
+                "name": "New question",
+                "value": raw_markdown_codeblock(
+                    truncate_middle(after, 740)
+                ),
+                "inline": False,
+            },
+        ],
+        colour=EDIT_COLOUR,
+    )
+
+
+def build_answer_log_embed(
+    record: Mapping[str, Any],
+    *,
+    operator_label: str,
+    answer_jump_url: Optional[str] = None,
+) -> discord.Embed:
+    """Build the verbose log entry for a successfully answered question."""
+
+    number = _record_number(record)
+    answer = _answer(record)
+    votes = _votes(record)
+
+    fields: List[Dict[str, Any]] = [
+        {
+            "name": "Votes snapshotted",
+            "value": _vote_line(votes) if votes else "No vote snapshot",
+            "inline": False,
+        },
+        {
+            "name": "Answer",
+            "value": raw_markdown_codeblock(
+                truncate_middle(
+                    _text(answer.get("content")),
+                    760,
+                )
+            ),
+            "inline": False,
+        },
+    ]
+
+    return build_audit_embed(
+        title=f"✅ Question Answered — #{number}",
+        actor_label=operator_label,
+        occurred_at=answer.get("created_at"),
+        question_number=number,
+        fields=fields,
+        jump_url=answer_jump_url,
+        colour=ANSWER_COLOUR,
+    )
+
+
+def build_answer_edit_log_embed(
+    *,
+    record: Mapping[str, Any],
+    actor_label: str,
+    before: str,
+    after: str,
+) -> discord.Embed:
+    """Build a before/after audit entry for an answer edit."""
+
+    number = _record_number(record)
+    answer = _answer(record)
+
+    return build_audit_embed(
+        title=f"✏️ Answer Edited — #{number}",
+        actor_label=actor_label,
+        occurred_at=answer.get("edited_at"),
+        question_number=number,
+        fields=[
+            {
+                "name": "Previous answer",
+                "value": raw_markdown_codeblock(
+                    truncate_middle(before, 740)
+                ),
+                "inline": False,
+            },
+            {
+                "name": "New answer",
+                "value": raw_markdown_codeblock(
+                    truncate_middle(after, 740)
+                ),
+                "inline": False,
+            },
+        ],
+        colour=EDIT_COLOUR,
+    )
+
+
+def build_removal_log_embed(
+    record: Mapping[str, Any],
+    *,
+    actor_label: str,
+) -> discord.Embed:
+    """Build a verbose log entry for a soft-removed pending question."""
+
+    number = _record_number(record)
+    removal = record.get("removal")
+    removal = dict(removal) if isinstance(removal, Mapping) else {}
+
+    fields: List[Dict[str, Any]] = [
+        {
+            "name": "Question text",
+            "value": raw_markdown_codeblock(
+                truncate_middle(
+                    _text(record.get("content")),
+                    760,
+                )
+            ),
+            "inline": False,
+        }
+    ]
+
+    if removal.get("reason"):
+        fields.append(
+            {
+                "name": "Reason",
+                "value": removal.get("reason"),
+                "inline": False,
+            }
+        )
+
+    return build_audit_embed(
+        title=f"🗑️ Question Removed — #{number}",
+        actor_label=actor_label,
+        occurred_at=removal.get("created_at"),
+        question_number=number,
+        fields=fields,
+        colour=REMOVED_COLOUR,
+    )
+
+
+def build_recovery_log_embed(
+    *,
+    title: str,
+    question_number: int,
+    actor_label: Optional[str],
+    occurred_at: Any,
+    details: str,
+    jump_url: Optional[str] = None,
+) -> discord.Embed:
+    """Build a log entry for resend/recovery/startup reconciliation."""
+
+    return build_audit_embed(
+        title=title,
+        actor_label=actor_label,
+        occurred_at=occurred_at,
+        description=details,
+        question_number=question_number,
+        jump_url=jump_url,
+        colour=LOG_COLOUR,
+    )
+
+
+def build_error_log_embed(
+    *,
+    title: str,
+    occurred_at: Any,
+    details: str,
+    question_number: Optional[int] = None,
+    actor_label: Optional[str] = None,
+) -> discord.Embed:
+    """Build the readable staff-side counterpart to a Python exception log."""
+
+    return build_audit_embed(
+        title=f"⚠️ {title}",
+        actor_label=actor_label,
+        occurred_at=occurred_at,
+        description=details,
+        question_number=question_number,
+        colour=ERROR_COLOUR,
+    )
+
+
+def build_config_change_log_embed(
+    *,
+    actor_label: str,
+    occurred_at: Any,
+    setting: str,
+    before: Any,
+    after: Any,
+) -> discord.Embed:
+    """Build a readable audit entry for guild configuration changes."""
+
+    return build_audit_embed(
+        title="⚙️ Flux Questions Configuration Changed",
+        actor_label=actor_label,
+        occurred_at=occurred_at,
+        fields=[
+            {
+                "name": "Setting",
+                "value": setting,
+                "inline": False,
+            },
+            {
+                "name": "Previous value",
+                "value": _text(before) or "Not configured",
+                "inline": False,
+            },
+            {
+                "name": "New value",
+                "value": _text(after) or "Not configured",
+                "inline": False,
+            },
+        ],
+        colour=LOG_COLOUR,
+    )
