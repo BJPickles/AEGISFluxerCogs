@@ -1,0 +1,36 @@
+{
+    "author": [
+        "Five"
+    ],
+    "name": "FluxQuestions",
+    "short": "A persistent reaction-driven Q&A system for Fluxer.",
+    "description": "Turns ordinary community messages into numbered questions using a guild-configured reaction emoji. Pending questions receive native thumbs-up and thumbs-down reactions, authors can privately self-edit for a configurable time window, privileged roles can continue editing pending questions, and operators can publish permanent answers with vote snapshots, revision history, verbose audit logging, and crash/restart recovery.",
+    "install_msg": "Thank you for installing Flux Questions! Configure it with `[p]questions set questions #channel`, `[p]questions set answers #channel`, `[p]questions set log #channel`, and `[p]questions set emoji <emoji>`. Use `[p]questions settings` to review the configuration.",
+    "end_user_data_statement": "This cog stores per-community configuration and permanent numbered question records. Stored question data may include the question author's user ID, the user ID of the person who submitted the source message as a question, source channel and message IDs, pending and answer channel/message IDs, question text, answer text, Unix timestamps, question and answer revision history, editor/operator user IDs, final vote snapshots, soft-removal metadata, and temporary recovery-operation metadata used to make state transitions resilient to bot crashes or restarts. The cog also stores aggregate statistics and per-community role/channel/emoji settings. Individual live votes are not stored; only final aggregate vote totals are snapshotted when a question is answered. Red data-deletion requests remove or anonymise stored identifiers associated with the requesting user and, for questions authored by that user, replace stored question text and question revision text while retaining non-personal numbering and aggregate statistics. Messages already posted in community channels remain subject to normal community moderation and Fluxer retention.",
+    "min_bot_version": "3.5.0",
+    "max_bot_version": "0.0.0",
+    "min_python_version": [
+        3,
+        8,
+        0
+    ],
+    "hidden": false,
+    "disabled": false,
+    "permissions": [],
+    "required_cogs": {},
+    "requirements": [],
+    "tags": [
+        "fluxer",
+        "questions",
+        "qna",
+        "qa",
+        "reactions",
+        "voting",
+        "community",
+        "audit",
+        "logging",
+        "persistent",
+        "aegis"
+    ],
+    "type": "COG"
+}
