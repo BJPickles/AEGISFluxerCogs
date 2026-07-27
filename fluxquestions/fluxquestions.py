@@ -97,6 +97,7 @@ PERMISSION_NAMES = {
 LIST_PAGE_SIZE = 10
 EDIT_SESSION_GRACE_SECONDS = 5 * 60
 RECOVERY_SEARCH_SLOP_SECONDS = 5 * 60
+ANSWER_EMBED_VERSION = 2
 
 PENDING_REQUIRED = [
     "view_channel",
@@ -124,7 +125,7 @@ class FluxQuestions(commands.Cog):
     """Persistent reaction-driven Q&A for Fluxer."""
 
     __author__ = "Five"
-    __version__ = "1.0.0"
+    __version__ = "1.0.2"
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -1066,6 +1067,79 @@ class FluxQuestions(commands.Cog):
         )
         return message
 
+    async def _refresh_existing_answer_message(
+        self,
+        guild: discord.Guild,
+        record: Mapping[str, Any],
+    ) -> str:
+        """Edit an already-tracked answer message in place.
+
+        This helper is intentionally non-destructive and non-creative: it never
+        reposts a missing historical answer. It is used by presentation-schema
+        migrations so a cog reload/restart can update existing embeds without
+        changing message IDs, links, or channel positions.
+
+        Returns ``"updated"`` when an existing message was edited and
+        ``"missing"`` when the stored message/channel no longer exists.
+        """
+
+        if str(record.get("status")) != "answered":
+            raise StorageConflict("That question is not answered.")
+
+        answer = record.get("answer")
+        answer = dict(answer) if isinstance(answer, Mapping) else {}
+
+        channel_id = positive_int(answer.get("channel_id"))
+        message_id = positive_int(answer.get("message_id"))
+
+        if channel_id is None or message_id is None:
+            return "missing"
+
+        channel = self._text_channel(guild, channel_id)
+        if channel is None:
+            return "missing"
+
+        missing = self._missing_permissions(
+            channel,
+            [
+                "view_channel",
+                "read_message_history",
+                "send_messages",
+                "embed_links",
+            ],
+        )
+        if missing:
+            raise StorageConflict(
+                "I cannot refresh the stored answer because its channel is "
+                "missing permissions: "
+                + ", ".join(missing)
+            )
+
+        try:
+            message = await channel.fetch_message(message_id)
+        except discord.NotFound:
+            return "missing"
+        except discord.Forbidden as exc:
+            raise StorageConflict(
+                "Fluxer refused access to the stored answer message."
+            ) from exc
+        except discord.HTTPException as exc:
+            raise StorageConflict(
+                f"I could not retrieve the stored answer message: {exc}"
+            ) from exc
+
+        embeds = await self._answer_embeds(guild, record)
+
+        try:
+            await message.edit(
+                embeds=embeds,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        except TypeError:
+            await message.edit(embeds=embeds)
+
+        return "updated"
+
     async def _cleanup_pending_after_resolution(
         self,
         guild: discord.Guild,
@@ -1285,6 +1359,12 @@ class FluxQuestions(commands.Cog):
             status="answered",
         )
 
+        stored_embed_version = int(conf.get("answer_embed_version") or 0)
+        migrate_answer_embeds = stored_embed_version < ANSWER_EMBED_VERSION
+        migrated_answers = 0
+        missing_answers = 0
+        migration_failures = 0
+
         for record in answered:
             answer = record.get("answer")
             answer = dict(answer) if isinstance(answer, Mapping) else {}
@@ -1306,10 +1386,34 @@ class FluxQuestions(commands.Cog):
                         question_number=int(record["number"]),
                     )
 
-            # Only edited answers need routine content resynchronisation.
-            # This catches a crash between the Config write and Message.edit
-            # without fetching every historical answer on every restart.
-            if answer.get("edited_at"):
+            if migrate_answer_embeds:
+                try:
+                    result = await self._refresh_existing_answer_message(
+                        guild,
+                        record,
+                    )
+
+                    if result == "updated":
+                        migrated_answers += 1
+                    else:
+                        # A deleted historical answer is not recreated merely
+                        # for a cosmetic migration. resendanswer will recreate
+                        # it later using the current layout if staff choose.
+                        missing_answers += 1
+
+                except Exception as exc:
+                    migration_failures += 1
+                    await self._audit_error(
+                        guild,
+                        title="Answer embed migration failed",
+                        details=str(exc),
+                        question_number=int(record["number"]),
+                    )
+
+            # Outside a presentation migration, edited answers retain the
+            # existing crash-recovery behaviour and may be recreated when their
+            # canonical edited content was saved but the live message vanished.
+            elif answer.get("edited_at"):
                 try:
                     await self._ensure_answer_message(
                         guild,
@@ -1323,6 +1427,57 @@ class FluxQuestions(commands.Cog):
                         details=str(exc),
                         question_number=int(record["number"]),
                     )
+
+        if migrate_answer_embeds:
+            if migration_failures == 0:
+                await self.config.guild(guild).answer_embed_version.set(
+                    ANSWER_EMBED_VERSION
+                )
+
+                await self._send_audit(
+                    guild,
+                    build_audit_embed(
+                        title="♻️ Answer Embed Layout Updated",
+                        actor_label="Automatic startup migration",
+                        occurred_at=unix_now(),
+                        description=(
+                            "Existing tracked answer messages were refreshed "
+                            "in place to the current clear Q → A presentation. "
+                            "No message IDs or links were intentionally changed."
+                        ),
+                        fields=[
+                            {
+                                "name": "Updated in place",
+                                "value": str(migrated_answers),
+                                "inline": True,
+                            },
+                            {
+                                "name": "Missing/deleted",
+                                "value": str(missing_answers),
+                                "inline": True,
+                            },
+                            {
+                                "name": "Embed version",
+                                "value": str(ANSWER_EMBED_VERSION),
+                                "inline": True,
+                            },
+                        ],
+                        colour=LOG_COLOUR,
+                    ),
+                )
+            else:
+                # Do not advance the presentation version. The failed records
+                # will be attempted again on the next reload/restart.
+                await self._audit_error(
+                    guild,
+                    title="Answer embed migration incomplete",
+                    details=(
+                        f"Updated {migrated_answers} answer message(s); "
+                        f"{missing_answers} were already missing/deleted; "
+                        f"{migration_failures} failed and will be retried "
+                        "after the next cog reload or bot restart."
+                    ),
+                )
 
     # ------------------------------------------------------------------
     # Reaction submission listener

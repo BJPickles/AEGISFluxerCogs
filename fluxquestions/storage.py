@@ -70,6 +70,7 @@ class QuestionStorage:
             operator_role_ids=[],
             source_channel_ids=[],
             author_edit_window_seconds=DEFAULT_EDIT_WINDOW_SECONDS,
+            answer_embed_version=0,
         )
 
         # (guild_id, question_number)

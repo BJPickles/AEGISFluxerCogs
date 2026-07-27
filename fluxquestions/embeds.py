@@ -267,6 +267,12 @@ def build_pending_question_embed(
     return embed
 
 
+def _qa_description(question: str, answer: str) -> str:
+    """Build the clear top-to-bottom Q/A body used by completed answers."""
+
+    return f"**Q**\n{question}\n\n**A**\n{answer}"
+
+
 def build_answer_embeds(
     record: Mapping[str, Any],
     *,
@@ -276,23 +282,26 @@ def build_answer_embeds(
 ) -> List[discord.Embed]:
     """Build the permanent answered Q&A card.
 
-    One embed is returned when the complete Q&A safely fits. If the question
-    and answer are too large for one embed, two matched embeds are returned.
-    The caller should send them in the same Fluxer message using ``embeds=``.
+    The normal layout is deliberately question-first:
+
+        Q
+        <question>
+
+        A
+        <answer>
+
+    When both full texts cannot fit safely in one embed description, the same
+    Q-then-A reading order is preserved across two matched embeds. Public
+    question/answer text is never silently truncated.
     """
 
-    number = _record_number(record)
     question = _text(record.get("content"))
     answer = _answer(record)
     answer_text = _text(answer.get("content"))
-    votes = _votes(record)
 
-    combined_size = len(question) + len(answer_text)
+    combined_description = _qa_description(question, answer_text)
 
-    if (
-        combined_size <= COMBINED_QA_TEXT_LIMIT
-        and len(question) <= EMBED_FIELD_VALUE_LIMIT
-    ):
+    if len(combined_description) <= EMBED_DESCRIPTION_LIMIT:
         return [
             _build_compact_answer_embed(
                 record,
@@ -307,7 +316,7 @@ def build_answer_embeds(
         author_label=author_label,
         answered_by_label=answered_by_label,
         source_jump_url=source_jump_url,
-        votes=votes,
+        votes=_votes(record),
     )
 
 
@@ -324,29 +333,10 @@ def _build_compact_answer_embed(
     answer_text = _text(answer.get("content"))
     votes = _votes(record)
 
-    # Description keeps the answer Markdown intact while the question is placed
-    # in a field. This usually gives the answer the largest available space.
     embed = discord.Embed(
         title=f"✅ {question_label(number)}",
-        description=answer_text,
+        description=_qa_description(question, answer_text),
         colour=discord.Colour(ANSWER_COLOUR),
-    )
-
-    # A field is limited to 1024 chars, so a compact embed is only valid when
-    # the question can fit there. If it cannot, use the split layout.
-    if len(question) > EMBED_FIELD_VALUE_LIMIT:
-        return _build_split_answer_embeds(
-            record,
-            author_label=author_label,
-            answered_by_label=answered_by_label,
-            source_jump_url=source_jump_url,
-            votes=votes,
-        )[0]
-
-    embed.add_field(
-        name="Question",
-        value=question,
-        inline=False,
     )
 
     if votes:
@@ -381,14 +371,10 @@ def _build_compact_answer_embed(
         inline=False,
     )
 
-    links: List[str] = []
     if source_jump_url:
-        links.append(f"[Original message]({source_jump_url})")
-
-    if links:
         embed.add_field(
             name="Links",
-            value=_safe_field_value(" • ".join(links)),
+            value=f"[Original message]({source_jump_url})",
             inline=False,
         )
 
@@ -408,6 +394,13 @@ def _build_split_answer_embeds(
     source_jump_url: Optional[str],
     votes: Optional[Mapping[str, Any]] = None,
 ) -> List[discord.Embed]:
+    """Build a matched two-embed Q/A card for long content.
+
+    The first embed is always the full question and the second is always the
+    full answer, retaining the same clear Q -> A reading order as the compact
+    layout.
+    """
+
     number = _record_number(record)
     question = _text(record.get("content"))
     answer = _answer(record)
@@ -415,9 +408,9 @@ def _build_split_answer_embeds(
     vote_data = dict(votes or _votes(record))
 
     question_embed = discord.Embed(
-        title=f"❓ {question_label(number)}",
-        description=question,
-        colour=discord.Colour(QUESTION_COLOUR),
+        title=f"✅ {question_label(number)}",
+        description=f"**Q**\n{question}",
+        colour=discord.Colour(ANSWER_COLOUR),
     )
 
     if author_label:
@@ -449,12 +442,12 @@ def _build_split_answer_embeds(
 
     _set_footer(
         question_embed,
-        f"{question_label(number)} • Answer follows below",
+        f"{question_label(number)} • Answer follows immediately below",
     )
 
     answer_embed = discord.Embed(
-        title="✅ Answer",
-        description=answer_text,
+        title="Answer",
+        description=f"**A**\n{answer_text}",
         colour=discord.Colour(ANSWER_COLOUR),
     )
 
